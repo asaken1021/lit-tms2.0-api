@@ -116,6 +116,46 @@ post '/api/v1' do
   elsif req_type == "create_task"
   elsif req_type == "remove_task"
   elsif req_type == "change_task_progress"
+  elsif req_type == "get_projects"
+    user = User.find_by(id: req_data["id"])
+    if (user != nil)
+      projects = Project.where(user_id: user.id)
+      if (projects != nil)
+        res_data = {
+          response: "OK"
+        }
+        res_data["projects"] = projects
+      else
+        res_data = {
+          response: "Bad Request",
+          reason: "PROJECT_NOT_FOUND"
+        }
+      end
+    else
+      res_data = {
+        response: "Bad Request",
+        reason: "USER_NOT_FOUND"
+      }
+    end
+  elsif req_type == "get_project_info"
+    project = Project.find_by(id: req_data["project_id"])
+    phases = Phase.where(project_id: req_data["project_id"])
+    tasks = Task.where(project_id: req_data["project_id"])
+    if project.user_id == req_data["id"]
+      res_data = {
+        response: "OK"
+      }
+      res_data["project"] = project
+      res_data["phases"] = phases
+      res_data["tasks"] = tasks
+    else
+      res_data = {
+        response: "Bad Request"
+      }
+    end
+  elsif req_type == "get_groups"
+  elsif req_type == "get_group_info"
+  elsif req_type == "get_user_info"
   elsif req_type == "line_link"
   elsif req_type == "line_link_completed"
   else
