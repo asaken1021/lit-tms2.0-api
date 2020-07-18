@@ -141,18 +141,12 @@ post '/api/v1' do
     project = Project.find_by(id: req_data["project_id"])
     phases = Phase.where(project_id: req_data["project_id"])
     tasks = Task.where(project_id: req_data["project_id"])
-    if project.user_id == req_data["id"]
-      res_data = {
-        response: "OK"
-      }
-      res_data["project"] = project
-      res_data["phases"] = phases
-      res_data["tasks"] = tasks
-    else
-      res_data = {
-        response: "Bad Request"
-      }
-    end
+    res_data = {
+      response: "OK"
+    }
+    res_data["project"] = project
+    res_data["phases"] = phases
+    res_data["tasks"] = tasks
   elsif req_type == "get_groups"
   elsif req_type == "get_group_info"
   elsif req_type == "get_user_info"
