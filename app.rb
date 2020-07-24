@@ -24,7 +24,7 @@ if Socket.gethostname == 'tms2.0.local'
   set :server_settings, ssl_options
 end
 
-enable :sessions
+# enable :sessions
 
 configure do
   enable :cross_origin
@@ -41,11 +41,11 @@ options "*" do
   200
 end
 
-helpers do
-  def current_user
-    User.find_by(id: session[:user])
-  end
-end
+# helpers do
+#   def current_user
+#     User.find_by(id: session[:user])
+#   end
+# end
 
 get '/' do
   'TMS 2.0 API'
@@ -64,7 +64,7 @@ post '/api/v1' do
       user_line_id: ""
     )
     if user.persisted? # ユーザー登録成功時はユーザー情報を返す
-      session[:user] = user.id
+      # session[:user] = user.id
       res_data = {
         response: "OK",
         id: user.id,
@@ -87,7 +87,7 @@ post '/api/v1' do
   elsif req_type == "sign_in"
     user = User.find_by(mail: req_data["mail"])
     if user && user.authenticate(req_data["password"])
-      session[:user] = user.id
+      # session[:user] = user.id
       res_data = {
         response: "OK",
         id: user.id,
@@ -110,15 +110,73 @@ post '/api/v1' do
   elsif req_type == "set_user_groups"
   elsif req_type == "create_group"
   elsif req_type == "create_project"
+    user = User.find_by(id: req_data["user_id"])
+    if user != nil
+      project = Project.create(
+        name: req_data["name"],
+        progress: 0,
+        user_id: user.id
+      )
+      res_data = {
+        response: "OK"
+      }
+      res_data["project"] = project
+    else
+      res_data = {
+        response: "Bad Request",
+        reason: "USER_NOT_FOUND"
+      }
+    end
   elsif req_type == "set_project_visibility"
   elsif req_type == "remove_project"
   elsif req_type == "create_phase"
+    user = User.find_by(id: req_data["user_id"])
+    if user != nil
+      project = Project.find_by(id: req_data["project_id"])
+      if project.user_id == user.id
+        deadline_date = req_data["deadline"].split('-')
+        if deadline_date != nil && req_data["name"] != ""
+          if Date.valid_date?(deadline_date[0].to_i, deadline_date[1].to_i, deadline_date[2].to_i)
+            phase = Phase.create(
+              name: req_data["name"],
+              deadline: req_data["deadline"],
+              project_id: project.id
+            )
+
+            res_data = {
+              response: "OK"
+            }
+            res_data["phase"] = phase
+          else
+            res_data = {
+              response: "Bad Request",
+              reason: "DEADLINE_INVALID"
+            }
+          end
+        else
+          res_data = {
+            response: "Bad Request",
+            reason: "DEADLINE_INVALID_OR_NAME_INVALID"
+          }
+        end
+      else
+        res_data = {
+          response: "Bad Request",
+          reason: "USER_MISMATCH"
+        }
+      end
+    else
+      res_data = {
+        response: "Bad Request",
+        reason: "USER_NOT_FOUND"
+      }
+    end
   elsif req_type == "create_task"
   elsif req_type == "remove_task"
   elsif req_type == "change_task_progress"
   elsif req_type == "get_projects"
     user = User.find_by(id: req_data["id"])
-    if (user != nil)
+    if user != nil
       projects = Project.where(user_id: user.id)
       if (projects != nil)
         res_data = {
@@ -139,14 +197,21 @@ post '/api/v1' do
     end
   elsif req_type == "get_project_info"
     project = Project.find_by(id: req_data["project_id"])
-    phases = Phase.where(project_id: req_data["project_id"])
-    tasks = Task.where(project_id: req_data["project_id"])
-    res_data = {
-      response: "OK"
-    }
-    res_data["project"] = project
-    res_data["phases"] = phases
-    res_data["tasks"] = tasks
+    if project != nil
+      phases = Phase.where(project_id: req_data["project_id"])
+      tasks = Task.where(project_id: req_data["project_id"])
+      res_data = {
+        response: "OK"
+      }
+      res_data["project"] = project
+      res_data["phases"] = phases
+      res_data["tasks"] = tasks
+    else
+      res_data = {
+        response: "Bad Request",
+        reason: "PROJECT_NOT_FOUND"
+      }
+    end
   elsif req_type == "get_groups"
   elsif req_type == "get_group_info"
   elsif req_type == "get_user_info"
@@ -156,38 +221,4 @@ post '/api/v1' do
   end
   res_data = res_data.to_json
   json res_data
-end
-
-post '/sign_in' do #ユーザーサインイン
-  user = User.find_by(mail: params[:mail])
-  if user && user.authenticate(params[:password])
-    session[:user] = user.id
-    redirect to(params[:redirect_to])
-  else
-    session[:user] = nil
-    # @error_code = 4
-    # erb :error
-  end
-end
-
-post '/sign_out' do #ユーザーサインアウト
-  session[:user] = nil
-  # redirect to(params[:redirect_to])
-  redirect '/'
-end
-
-get '/users/:id' do
-  user = User.find_by(id: params[:id])
-  user_projects = Projects.where(user_id: params[:id])
-  user_activities = UserActivity.where(user_id: params[:id]).order(:created_at).reverse_order
-  if @user == nil
-    # エラーであることを通知
-  else
-    data = {
-      userData: user,
-      userProjectsData: user_projects,
-      userActivitiesData: user_activities
-    }
-    json data
-  end
 end
