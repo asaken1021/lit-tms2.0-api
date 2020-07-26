@@ -174,11 +174,43 @@ post '/api/v1' do
   elsif req_type == "create_task"
   elsif req_type == "remove_task"
   elsif req_type == "change_task_progress"
+    user = User.find_by(id: req_data["user_id"])
+    if user != nil
+      task = Task.find_by(id: req_data["task_id"])
+      if Project.find_by(id: task.project_id).user_id == user.id
+        if task != nil
+          task.progress = req_data["task_progress"]
+          task.save
+          update_project_progress(task.project_id)
+
+          # アクティビティ追加処理
+
+          res_data = {
+            response: "OK"
+          }
+        else
+          res_data = {
+            response: "Bad Request",
+            reason: "TASK_NOT_FOUND"
+          }
+        end
+      else
+        res_data = {
+          response: "Bad Request",
+          reason: "USER_MISMATCH"
+        }
+      end
+    else
+      res_data = {
+         response: "Bad Request",
+         reason: "USER_NOT_FOUND"
+      }
+    end
   elsif req_type == "get_projects"
     user = User.find_by(id: req_data["id"])
     if user != nil
       projects = Project.where(user_id: user.id)
-      if (projects != nil)
+      if projects != nil
         res_data = {
           response: "OK"
         }
@@ -221,4 +253,19 @@ post '/api/v1' do
   end
   res_data = res_data.to_json
   json res_data
+end
+
+def update_project_progress(id = nil)
+  project = Project.find_by(id: id)
+  all_tasks = Task.where(project_id: id)
+  completed_tasks = all_tasks.where(progress: 100)
+  project.progress = calc_project_progress(all_tasks.count, completed_tasks.count)
+  project.save
+end
+
+def calc_project_progress(all = nil, completed = nil)
+  if all == 0
+    return 0
+  end
+  return (completed.to_f / all.to_f * 100)
 end
