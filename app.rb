@@ -135,7 +135,7 @@ post '/api/v1' do
     validation_result = validate_user_and_project(user.id, project.id)
 
     if validation_result == "VALIDATE_OK"
-      deadline_date = req_data["deadline"].sqlit('-')
+      deadline_date = req_data["deadline"].split('-')
       if deadline_date != nil && req_data["name"] != ""
         if Date.valid_date?(deadline_date[0].to_i, deadline_date[1].to_i, deadline_date[2].to_i)
           phase = Phase.create(
@@ -179,7 +179,7 @@ post '/api/v1' do
     if validation_result == "VALIDATE_OK"
       if phase != nil
         if req_data["name"] != nil || req_data["name"] != ""
-          Task.create(
+          task = Task.create(
             name: req_data["name"],
             memo: req_data["memo"],
             progress: 0,
@@ -190,6 +190,8 @@ post '/api/v1' do
           res_data = {
             response: "OK"
           }
+
+          update_project_progress(task.project_id)
         else
           res_data = {
             response: "Bad Request",
