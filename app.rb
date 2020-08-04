@@ -131,49 +131,122 @@ post '/api/v1' do
   elsif req_type == "remove_project"
   elsif req_type == "create_phase"
     user = User.find_by(id: req_data["user_id"])
-    if user != nil
-      project = Project.find_by(id: req_data["project_id"])
-      if project.user_id == user.id
-        deadline_date = req_data["deadline"].split('-')
-        if deadline_date != nil && req_data["name"] != ""
-          if Date.valid_date?(deadline_date[0].to_i, deadline_date[1].to_i, deadline_date[2].to_i)
-            phase = Phase.create(
-              name: req_data["name"],
-              deadline: req_data["deadline"],
-              project_id: project.id
-            )
+    project = Project.find_by(id: req_data["project_id"])
+    validation_result = validate_user_and_project(user.id, project.id)
 
-            res_data = {
-              response: "OK"
-            }
-            res_data["phase"] = phase
-          else
-            res_data = {
-              response: "Bad Request",
-              reason: "DEADLINE_INVALID"
-            }
-          end
+    if validation_result == "VALIDATE_OK"
+      deadline_date = req_data["deadline"].sqlit('-')
+      if deadline_date != nil && req_data["name"] != ""
+        if Date.valid_date?(deadline_date[0].to_i, deadline_date[1].to_i, deadline_date[2].to_i)
+          phase = Phase.create(
+            name: req_data["name"],
+            deadline: req_data["deadline"],
+            project_id: project.id
+          )
+
+          res_data = {
+            response: "OK"
+          }
+          # res_data["phase"] = phase
         else
           res_data = {
             response: "Bad Request",
-            reason: "DEADLINE_INVALID_OR_NAME_INVALID"
+            reason: "DEADLINE_INVALID"
           }
         end
       else
         res_data = {
           response: "Bad Request",
-          reason: "USER_MISMATCH"
+          reason: "DEADLINE_OR_NAME_INVALID"
         }
       end
-    else
+    elsif validation_result != nil && validation_result != "VALIDATE_OK"
       res_data = {
         response: "Bad Request",
-        reason: "USER_NOT_FOUND"
+        reason: validation_result
+      }
+    else
+      res_data = {
+        response: "Bad Request"
       }
     end
   elsif req_type == "create_task"
+    user = User.find_by(id: req_data["user_id"])
+    project = Project.find_by(id: req_data["project_id"])
+    phase = Phase.find_by(id: req_data["phase_id"])
+    validation_result = validate_user_and_project(user.id, project.id)
+
+    if validation_result == "VALIDATE_OK"
+      if phase != nil
+        if req_data["name"] != nil || req_data["name"] != ""
+          Task.create(
+            name: req_data["name"],
+            memo: req_data["memo"],
+            progress: 0,
+            phase_id: req_data["phase_id"],
+            project_id: req_data["project_id"]
+          )
+
+          res_data = {
+            response: "OK"
+          }
+        else
+          res_data = {
+            response: "Bad Request",
+            reason: "NAME_INVALID"
+          }
+        end
+      else
+        res_data = {
+          response: "Bad Request",
+          reason: "PHASE_NOT_FOUND"
+        }
+      end
+    elsif validation_result != nil && validation_result != "VALIDATE_OK"
+      res_data = {
+        response: "Bad Request",
+        reason: validation_result
+      }
+    else
+      res_data = {
+        response: "Bad Request"
+      }
+    end
   elsif req_type == "remove_task"
   elsif req_type == "change_task_progress"
+    user = User.find_by(id: req_data["user_id"])
+    task = Task.find_by(id: req_data["task_id"])
+    project = Project.find_by(id: task.project_id)
+    validation_result = validate_user_and_project(user.id, project.id)
+
+    if validation_result == "VALIDATE_OK"
+      if task != nil
+        task.progress = req_data["task_progress"]
+        task.save
+        update_project_progress(task.project_id)
+
+        # アクティビティ追加処理
+
+        res_data = {
+          response: "OK"
+        }
+      else
+        res_data = {
+          response: "Bad Request",
+          reason: "TASK_NOT_FOUND"
+        }
+      end
+    elsif validation_result != nil && validation_result != "VALIDATE_OK"
+      res_data = {
+        response: "Bad Request",
+        reason: validation_result
+      }
+    else
+      res_data = {
+        response: "Bad Request"
+      }
+    end
+
     user = User.find_by(id: req_data["user_id"])
     if user != nil
       task = Task.find_by(id: req_data["task_id"])
@@ -253,6 +326,27 @@ post '/api/v1' do
   end
   res_data = res_data.to_json
   json res_data
+end
+
+def validate_user_and_project(user_id = nil, project_id = nil)
+  user = User.find_by(id: user_id)
+  project = Project.find_by(id: project_id)
+  if user != nil && project != nil
+    if user.id == project.user_id
+      return "VALIDATE_OK"
+    else
+      return "USER_MISMATCH"
+    end
+  else
+    if user != nil
+      return "USER_NOT_FOUND"
+    elsif project != nil
+      return "PROJECT_NOT_FOUND"
+    else
+      return "FAILED_UNKNOWN"
+    end
+  end
+  return "ERROR"
 end
 
 def update_project_progress(id = nil)
