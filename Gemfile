@@ -31,3 +31,4 @@ gem 'cloudinary'
 gem 'dotenv'
 
 gem 'sinatra-cross_origin'
+gem 'sinatra-cors'

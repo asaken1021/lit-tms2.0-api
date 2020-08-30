@@ -14,6 +14,7 @@ require 'securerandom'
 require 'rmagick'
 
 require 'sinatra/cross_origin'
+require 'sinatra/cors'
 
 if Socket.gethostname == 'tms2.0.local'
   ssl_options = {
@@ -24,34 +25,55 @@ if Socket.gethostname == 'tms2.0.local'
   set :server_settings, ssl_options
 end
 
-# enable :sessions
+enable :sessions
 
 configure do
   enable :cross_origin
 end
 
+# set :allow_origin, "https://localhost:8080"
+# set :allow_methods, "GET, POST, OPTIONS"
+# set :allow_headers, "content-type, if-modified-since"
+# set :expose_headers, "location, link"
+
 before do
-  response.headers['Access-Control-Allow-Origin'] = '*'
+  response.headers["Allow"] = "GET, PUT, POST, DELETE, OPTIONS"
+  response.headers["Access-Control-Allow-Origin"] = "http://localhost:8080"
+  response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-User-Email, X-Auth-Token, X-Requested-With"
+  response.headers["Access-Control-Allow-Credentials"] = "true"
+  # response.headers['Access-Control-Allow-Origin'] = '*'
 end
+
+# post "*" do
+#   response.headers["Allow"] = "GET, PUT, POST, DELETE, OPTIONS"
+#   response.headers["Access-Control-Allow-Origin"] = "http://localhost:8080"
+#   response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-User-Email, X-Auth-Token, X-Requested-With"
+#   response.headers["Access-Control-Allow-Credentials"] = "true"
+#   200
+# end
 
 options "*" do
   response.headers["Allow"] = "GET, PUT, POST, DELETE, OPTIONS"
-  response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-User-Email, X-Auth-Token"
-  response.headers["Access-Control-Allow-Origin"] = "*"
+  response.headers["Access-Control-Allow-Origin"] = "http://localhost:8080"
+  response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, X-User-Email, X-Auth-Token, X-Requested-With"
+  response.headers["Access-Control-Allow-Credentials"] = "true"
   200
 end
 
-# helpers do
-#   def current_user
-#     User.find_by(id: session[:user])
-#   end
-# end
-
-get '/' do
-  'TMS 2.0 API'
+helpers do
+  def current_user
+    p "aaaaa"
+    User.find_by(id: session[:user])
+  end
 end
 
+# get '/' do
+#   # 'TMS 2.0 API'
+#   # redirect to ("http://localhost:4567/index.html")
+# end
+
 post '/api/v1' do
+
   request.body.rewind
   req_data = JSON.parse(request.body.string)
   req_type = req_data["type"]
@@ -63,8 +85,9 @@ post '/api/v1' do
       password_confirmation: req_data["password_confirmation"],
       user_line_id: ""
     )
+    session[:user] = user.id
     if user.persisted? # ユーザー登録成功時はユーザー情報を返す
-      # session[:user] = user.id
+      session[:user] = user.id
       res_data = {
         response: "OK",
         id: user.id,
@@ -87,7 +110,7 @@ post '/api/v1' do
   elsif req_type == "sign_in"
     user = User.find_by(mail: req_data["mail"])
     if user && user.authenticate(req_data["password"])
-      # session[:user] = user.id
+      session[:user] = user.id
       res_data = {
         response: "OK",
         id: user.id,
@@ -110,7 +133,8 @@ post '/api/v1' do
   elsif req_type == "set_user_groups"
   elsif req_type == "create_group"
   elsif req_type == "create_project"
-    user = User.find_by(id: req_data["user_id"])
+    # user = User.find_by(id: req_data["user_id"])
+    user = current_user
     if user != nil
       project = Project.create(
         name: req_data["name"],
@@ -130,8 +154,10 @@ post '/api/v1' do
   elsif req_type == "set_project_visibility"
   elsif req_type == "remove_project"
   elsif req_type == "create_phase"
-    user = User.find_by(id: req_data["user_id"])
+    # user = User.find_by(id: req_data["user_id"])
+    user = current_user
     project = Project.find_by(id: req_data["project_id"])
+    # binding.pry
     validation_result = validate_user_and_project(user.id, project.id)
 
     if validation_result == "VALIDATE_OK"
@@ -171,7 +197,8 @@ post '/api/v1' do
       }
     end
   elsif req_type == "create_task"
-    user = User.find_by(id: req_data["user_id"])
+    # user = User.find_by(id: req_data["user_id"])
+    user = current_user
     project = Project.find_by(id: req_data["project_id"])
     phase = Phase.find_by(id: req_data["phase_id"])
     validation_result = validate_user_and_project(user.id, project.id)
@@ -216,7 +243,8 @@ post '/api/v1' do
     end
   elsif req_type == "remove_task"
   elsif req_type == "change_task_progress"
-    user = User.find_by(id: req_data["user_id"])
+    # user = User.find_by(id: req_data["user_id"])
+    user = current_user
     task = Task.find_by(id: req_data["task_id"])
     project = Project.find_by(id: task.project_id)
     validation_result = validate_user_and_project(user.id, project.id)
@@ -282,7 +310,10 @@ post '/api/v1' do
       }
     end
   elsif req_type == "get_projects"
-    user = User.find_by(id: req_data["id"])
+    # user = User.find_by(id: req_data["id"])
+    user = current_user
+    binding.pry
+    # binding.pry
     if user != nil
       projects = Project.where(user_id: user.id)
       if projects != nil
@@ -324,6 +355,21 @@ post '/api/v1' do
   elsif req_type == "get_user_info"
   elsif req_type == "line_link"
   elsif req_type == "line_link_completed"
+  elsif req_type == "check_user_state"
+    user = current_user
+    if user != nil
+      res_data = {
+        response: "OK",
+        id: user.id,
+        name: user.name,
+        mail: user.mail,
+        lineid: user.user_line_id
+      }
+    else
+      res_data = {
+        response: "NOT_SIGNED_IN"
+      }
+    end
   else
   end
   res_data = res_data.to_json
